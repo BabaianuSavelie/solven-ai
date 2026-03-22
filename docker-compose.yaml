@@ -1,0 +1,39 @@
+services:
+  openclaw:
+    image: ghcr.io/openclaw/openclaw:latest
+    container_name: openclaw
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:18789:18789"
+    volumes:
+      - ~/.openclaw:/home/node/.openclaw
+      - ~/.openclaw/workspace:/home/node/.openclaw/workspace
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://127.0.0.1:18789/healthz || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: backend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=dev
+    depends_on:
+      openclaw:
+        condition: service_healthy
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: frontend
+    restart: unless-stopped
+    ports:
+      - "82:80"
+    depends_on:
+      - backend
