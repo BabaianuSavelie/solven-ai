@@ -36,3 +36,7 @@ export type ConnectionChallengePayload = {
   nonce: string;
   ts: number;
 };
+
+export type MessageStreamEvent =
+  | { type: 'text'; delta: string }
+  | { type: 'tool'; name: string; input?: unknown };
