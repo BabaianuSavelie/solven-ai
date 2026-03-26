@@ -36,7 +36,7 @@ export default function ChatPanel() {
   return (
     <div className="flex flex-1 flex-col" style={{ background: 'var(--bg-primary)' }}>
       <MessageList messages={messages} />
-      <MessageInput onSend={sendMessage} disabled={isResponding} />
+      <MessageInput onSend={(content, files) => sendMessage(content, files)} disabled={isResponding} />
     </div>
   );
 }

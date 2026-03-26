@@ -1,16 +1,27 @@
-import { Body, Controller, Param, Post, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Param,
+  Post,
+  Res,
+  UploadedFiles,
+  UseInterceptors,
+} from '@nestjs/common';
 import { Response } from 'express';
 import { OpenClawGatewayService } from '../openclaw/openclaw.service';
-import { MessageRequest } from './dtos/request/message.request';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import { MessageAttachment } from 'src/types/MessageAttachment';
 
 @Controller('conversations')
 export class ConversationMessagesController {
   constructor(private readonly openClawService: OpenClawGatewayService) {}
 
+  @UseInterceptors(FilesInterceptor('attachments', 10))
   @Post('/:conversationId/messages/stream')
   sendMessage(
     @Param('conversationId') conversationId: string,
-    @Body() body: MessageRequest,
+    @Body('message') message: string,
+    @UploadedFiles() files: Array<Express.Multer.File>,
     @Res() res: Response,
   ): void {
     res.setHeader('Content-Type', 'text/event-stream');
@@ -18,10 +29,15 @@ export class ConversationMessagesController {
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders();
 
-    const stream$ = this.openClawService.sendMessage(
-      conversationId,
-      body.message,
-    );
+    const attachments: MessageAttachment[] = (files ?? []).map((f) => ({
+      mimeType: f.mimetype,
+      content: `data:${f.mimetype};base64,${f.buffer.toString('base64')}`,
+    }));
+
+    const stream$ = this.openClawService.sendMessage(conversationId, {
+      message,
+      attachments,
+    });
 
     stream$.subscribe({
       next: (event) => {

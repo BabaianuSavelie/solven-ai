@@ -1,47 +1,59 @@
 import type { ToolCall } from '../types';
 
-const mockTools: ToolCall[] = [
-  {
-    id: 'tc-1',
-    toolName: 'web_search',
-    status: 'done',
-    input: { query: 'latest AI research papers 2026' },
-    output: 'Found 12 relevant results from arxiv.org and scholar.google.com',
-  },
-  {
-    id: 'tc-2',
-    toolName: 'file_read',
-    status: 'done',
-    input: { path: '/src/components/App.tsx' },
-    output: 'import React from "react";\n\nexport default function App() { ... }',
-  },
-  {
-    id: 'tc-3',
-    toolName: 'file_write',
-    status: 'done',
-    input: { path: '/src/utils/helpers.ts', content: 'export function formatDate...' },
-    output: 'File written successfully.',
-  },
-];
+const STREAM_URL = '/conversations/543b25a1-bb24-4c90-83c8-cf3207f1783d/messages/stream';
 
-const mockResponses = [
-  "I found some interesting results. Here's a summary of the latest research in AI alignment and safety.",
-  "I've read the file. It contains a standard React component with a default export.",
-  "Done! I've written the helper utility file with the formatting functions you requested.",
-];
+export async function streamMessage(
+  userMessage: string,
+  files: File[],
+  onText: (chunk: string) => void,
+  onToolCall: (toolCall: ToolCall) => void,
+): Promise<void> {
+  const formData = new FormData();
+  formData.append('message', userMessage);
+  for (const file of files) {
+    formData.append('attachments', file);
+  }
 
-let callIndex = 0;
+  const response = await fetch(STREAM_URL, {
+    method: 'POST',
+    body: formData,
+  });
 
-export async function sendMessage(
-  _userMessage: string,
-): Promise<{ content: string; toolCalls: ToolCall[] }> {
-  const idx = callIndex % mockResponses.length;
-  callIndex++;
+  if (!response.ok) {
+    throw new Error(`HTTP error ${response.status}`);
+  }
 
-  await new Promise((resolve) => setTimeout(resolve, 1500));
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
 
-  return {
-    content: mockResponses[idx],
-    toolCalls: [{ ...mockTools[idx], id: `tc-${Date.now()}` }],
-  };
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() ?? '';
+
+    let eventType = '';
+    for (const line of lines) {
+      if (line.startsWith('event:')) {
+        eventType = line.slice(6).trim();
+      } else if (line.startsWith('data:')) {
+        const raw = line.slice(5).trim();
+        try {
+          const data = JSON.parse(raw);
+          const resolvedType = eventType || (data.text !== undefined ? 'text' : 'tool_call');
+          if (resolvedType === 'text') {
+            onText(data.text ?? '');
+          } else if (resolvedType === 'tool_call') {
+            onToolCall(data as ToolCall);
+          }
+        } catch {
+          // ignore malformed data lines
+        }
+        eventType = '';
+      }
+    }
+  }
 }

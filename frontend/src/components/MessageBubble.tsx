@@ -90,7 +90,34 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
           </div>
         )}
 
-        {(message.content || isUser) && (
+        {message.attachments.length > 0 && (
+          <div className="mb-2 flex flex-wrap gap-2">
+            {message.attachments.map((att, i) => {
+              const isImage = att.mimeType.startsWith('image/');
+              return (
+                <div
+                  key={i}
+                  className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs"
+                  style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)' }}
+                >
+                  {isImage ? (
+                    <img src={att.previewUrl} alt={att.name} className="h-16 w-16 rounded object-cover" />
+                  ) : (
+                    <>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                        <polyline points="14 2 14 8 20 8" />
+                      </svg>
+                      <span className="max-w-[160px] truncate" style={{ color: 'var(--text-secondary)' }}>{att.name}</span>
+                    </>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {(message.content || !isUser) && (
           <div
             className="text-sm leading-relaxed"
             style={{ color: 'var(--text-primary)' }}

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import type { Conversation, Message } from '../types';
-import { sendMessage as aiSendMessage } from '../services/aiService';
+import type { Conversation, Message, MessageAttachment } from '../types';
+import { streamMessage } from '../services/aiService';
 
 interface ConversationsState {
   conversations: Conversation[];
@@ -8,7 +8,7 @@ interface ConversationsState {
   isResponding: boolean;
   createConversation: () => string;
   setActiveConversation: (id: string) => void;
-  sendMessage: (content: string) => Promise<void>;
+  sendMessage: (content: string, files?: File[]) => Promise<void>;
 }
 
 function createId(): string {
@@ -39,35 +39,35 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
     set({ activeConversationId: id });
   },
 
-  sendMessage: async (content) => {
+  sendMessage: async (content, files = []) => {
     const state = get();
     let convId = state.activeConversationId;
     if (!convId) {
       convId = state.createConversation();
     }
 
+    const attachments: MessageAttachment[] = files.map((f) => ({
+      name: f.name,
+      mimeType: f.type,
+      previewUrl: URL.createObjectURL(f),
+    }));
+
     const userMsg: Message = {
       id: createId(),
       role: 'user',
       content,
       toolCalls: [],
+      attachments,
       createdAt: new Date(),
     };
 
     const assistantMsgId = createId();
-    const toolCallId = createId();
     const assistantMsg: Message = {
       id: assistantMsgId,
       role: 'assistant',
       content: '',
-      toolCalls: [
-        {
-          id: toolCallId,
-          toolName: 'web_search',
-          status: 'running',
-          input: { query: content },
-        },
-      ],
+      toolCalls: [],
+      attachments: [],
       createdAt: new Date(),
     };
 
@@ -75,52 +75,50 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
       isResponding: true,
       conversations: s.conversations.map((c) => {
         if (c.id !== convId) return c;
-        const isFirst = c.messages.length === 0;
         return {
           ...c,
-          title: isFirst ? content.slice(0, 40) : c.title,
+          title: c.messages.length === 0 ? content.slice(0, 40) : c.title,
           messages: [...c.messages, userMsg, assistantMsg],
         };
       }),
     }));
 
+    const updateAssistant = (updater: (m: Message) => Message) => {
+      set((s) => ({
+        conversations: s.conversations.map((c) => {
+          if (c.id !== convId) return c;
+          return {
+            ...c,
+            messages: c.messages.map((m) => (m.id !== assistantMsgId ? m : updater(m))),
+          };
+        }),
+      }));
+    };
+
     try {
-      const response = await aiSendMessage(content);
-      set((s) => ({
-        isResponding: false,
-        conversations: s.conversations.map((c) => {
-          if (c.id !== convId) return c;
-          return {
-            ...c,
-            messages: c.messages.map((m) => {
-              if (m.id !== assistantMsgId) return m;
-              return {
-                ...m,
-                content: response.content,
-                toolCalls: response.toolCalls,
-              };
-            }),
-          };
-        }),
-      }));
+      await streamMessage(
+        content,
+        files,
+        (chunk) => updateAssistant((m) => ({ ...m, content: m.content + chunk })),
+        (toolCall) =>
+          updateAssistant((m) => {
+            const exists = m.toolCalls.some((tc) => tc.id === toolCall.id);
+            return {
+              ...m,
+              toolCalls: exists
+                ? m.toolCalls.map((tc) => (tc.id === toolCall.id ? { ...tc, ...toolCall } : tc))
+                : [...m.toolCalls, toolCall],
+            };
+          }),
+      );
     } catch {
-      set((s) => ({
-        isResponding: false,
-        conversations: s.conversations.map((c) => {
-          if (c.id !== convId) return c;
-          return {
-            ...c,
-            messages: c.messages.map((m) => {
-              if (m.id !== assistantMsgId) return m;
-              return {
-                ...m,
-                content: 'An error occurred. Please try again.',
-                toolCalls: m.toolCalls.map((tc) => ({ ...tc, status: 'error' as const })),
-              };
-            }),
-          };
-        }),
+      updateAssistant((m) => ({
+        ...m,
+        content: m.content || 'An error occurred. Please try again.',
+        toolCalls: m.toolCalls.map((tc) => ({ ...tc, status: 'error' as const })),
       }));
+    } finally {
+      set({ isResponding: false });
     }
   },
 }));

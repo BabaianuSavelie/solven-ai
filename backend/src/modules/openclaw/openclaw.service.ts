@@ -12,6 +12,7 @@ import {
   GatewayFrame,
   MessageStreamEvent,
 } from 'src/types/PreConnectChallengeRequest';
+import { MessageAttachment } from 'src/types/MessageAttachment';
 import { randomUUID } from 'crypto';
 import * as WebSocket from 'ws';
 import { DeviceIdentityService } from './device-identity.service';
@@ -148,10 +149,11 @@ export class OpenClawGatewayService implements OnModuleInit, OnModuleDestroy {
 
   sendMessage(
     sessionKey: string,
-    text: string,
+    body: { message: string; attachments?: MessageAttachment[] },
   ): Observable<MessageStreamEvent> {
     const reqId = randomUUID();
     const idempotencyKey = randomUUID();
+    console.log(body.attachments);
 
     this.webSocket.send(
       JSON.stringify({
@@ -159,12 +161,14 @@ export class OpenClawGatewayService implements OnModuleInit, OnModuleDestroy {
         id: reqId,
         method: 'chat.send',
         params: {
-          message: text,
+          message: body.message,
+          attachments: body.attachments,
           sessionKey,
           idempotencyKey,
         },
       }),
     );
+    console.log(idempotencyKey);
 
     return new Observable((observer) => {
       let runId: string | null = null;
@@ -203,6 +207,7 @@ export class OpenClawGatewayService implements OnModuleInit, OnModuleDestroy {
           if (payload.stream === 'assistant' && payload.data.delta) {
             observer.next({ type: 'text', delta: payload.data.delta });
           } else if (payload.stream === 'tool' && payload.data.name) {
+            console.log('[tool call]', payload.data.name, payload.data.input);
             observer.next({
               type: 'tool',
               name: payload.data.name,

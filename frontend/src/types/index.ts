@@ -9,11 +9,18 @@ export interface ToolCall {
   output?: string;
 }
 
+export interface MessageAttachment {
+  name: string;
+  mimeType: string;
+  previewUrl: string;
+}
+
 export interface Message {
   id: string;
   role: Role;
   content: string;
   toolCalls: ToolCall[];
+  attachments: MessageAttachment[];
   createdAt: Date;
 }
 
