@@ -97,6 +97,7 @@ export const useConversationsStore = create<ConversationsState>((set, get) => ({
 
     try {
       await streamMessage(
+        convId,
         content,
         files,
         (chunk) => updateAssistant((m) => ({ ...m, content: m.content + chunk })),

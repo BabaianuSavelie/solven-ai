@@ -1,8 +1,14 @@
+networks:
+  solven:
+    driver: bridge
+
 services:
   openclaw:
     image: ghcr.io/openclaw/openclaw:latest
     container_name: openclaw
     restart: unless-stopped
+    networks:
+      - solven
     ports:
       - "127.0.0.1:18789:18789"
     volumes:
@@ -22,8 +28,13 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
+    env_file:
+      - ./backend/.env
     environment:
       - NODE_ENV=dev
+      - OPENCLAW_WS_URL=ws://openclaw:18789
+    networks:
+      - solven
     depends_on:
       openclaw:
         condition: service_healthy
@@ -31,9 +42,13 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        - VITE_API_BASE_URL=http://localhost:3000
     container_name: frontend
     restart: unless-stopped
     ports:
       - "82:80"
+    networks:
+      - solven
     depends_on:
       - backend

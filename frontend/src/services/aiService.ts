@@ -1,8 +1,9 @@
 import type { ToolCall } from '../types';
 
-const STREAM_URL = '/conversations/543b25a1-bb24-4c90-83c8-cf3207f1783d/messages/stream';
+const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
 export async function streamMessage(
+  conversationId: string,
   userMessage: string,
   files: File[],
   onText: (chunk: string) => void,
@@ -14,7 +15,7 @@ export async function streamMessage(
     formData.append('attachments', file);
   }
 
-  const response = await fetch(STREAM_URL, {
+  const response = await fetch(`${BASE_URL}/conversations/${conversationId}/messages/stream`, {
     method: 'POST',
     body: formData,
   });
