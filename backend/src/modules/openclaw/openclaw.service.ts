@@ -10,8 +10,8 @@ import {
   ConnectionChallengePayload,
   FrameType,
   GatewayFrame,
-  MessageStreamEvent,
-} from 'src/types/PreConnectChallengeRequest';
+} from './gateway.types';
+import { MessageStreamEvent } from 'src/types/stream.types';
 import { MessageAttachment } from 'src/types/MessageAttachment';
 import { randomUUID } from 'crypto';
 import * as WebSocket from 'ws';

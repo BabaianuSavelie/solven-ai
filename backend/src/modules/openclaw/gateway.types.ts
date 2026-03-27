@@ -4,12 +4,6 @@ export enum FrameType {
   EVENT = 'event',
 }
 
-export interface PreconnectChallengeRequest {
-  type: string;
-  event: string;
-  payload: { nonce: string; ts: number };
-}
-
 export type RequestFrame = {
   type: FrameType.REQUEST;
   id: string;
@@ -36,7 +30,3 @@ export type ConnectionChallengePayload = {
   nonce: string;
   ts: number;
 };
-
-export type MessageStreamEvent =
-  | { type: 'text'; delta: string }
-  | { type: 'tool'; name: string; input?: unknown };
